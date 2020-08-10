@@ -1,11 +1,19 @@
 library(shiny)
 
 shinyUI(
+  
   navbarPage(
     "CLFBG",
     tabPanel(
       "Main",
       fluidPage(
+  tags$head(
+    tags$style(HTML("
+      .shiny-output-error-validation {
+        color: green;
+      }
+    "))
+  ),
         titlePanel("clustering fluorescence-based genotyping data"), 
         p("This tool cluster fluorescence-based genotyping data like KASP",tags$sup("*")),
         p(
@@ -13,35 +21,53 @@ shinyUI(
         ),
         sidebarLayout(
           sidebarPanel(
-            fileInput(
-              "inFile", "Input data",
-              accept = c("text/csv", "application/vnd.ms-excel",
-                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                         ".csv",
-                         ".xls",
-                         ".xlsx")),
-            tags$span("or"),
-            actionButton("demo", "load demo data"),
-            uiOutput("sheet"),
-            radioButtons("normMethod", "Choose normalization method",
-                         choices = c("none", "min-max", "standard"),
-                         selected = "none"),
-            radioButtons("method", "Choose clustering method",
-                         choices = c("k-means", "k-medoids", "DBSCAN", "gauss-mix"),
-                         selected = "k-means"),
-            conditionalPanel(
-              condition = "input.method == 'k-means' || input.method == 'k-medoids'",
-              tags$label("k-means or k-medoids parameters"),
-              numericInput("k", "k", 4, min = 1, step = 1)
-            ),
-            conditionalPanel(
-              condition = "input.method == 'DBSCAN'",
-              tags$label("DBSCAN parameters"),
-              numericInput("eps", "eps", 0.1, min = 0, step = 0.01),
-              numericInput("minPts", "minPts", 5, min = 1, step = 1)
-            ),
-            br(),
-            downloadButton("downloadData", "Download CSV file")
+            tabsetPanel(
+              tabPanel(
+                title = "Analysis",
+                
+                fileInput(
+                  "inFile", "Input data",
+                  accept = c("text/csv", "application/vnd.ms-excel",
+                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             ".csv",
+                             ".xls",
+                             ".xlsx")),
+                tags$span("or"),
+                actionButton("demo", "load demo data"),
+                uiOutput("sheet"),
+                radioButtons("normMethod", "Choose normalization method",
+                             choices = c("none", "min-max", "standard"),
+                             selected = "none"),
+                radioButtons("method", "Choose clustering method",
+                             choices = c("k-means", "k-medoids", "DBSCAN", "gauss-mix"),
+                             selected = "k-means"),
+                conditionalPanel(
+                  condition = "input.method == 'k-means' || input.method == 'k-medoids'",
+                  tags$label("k-means or k-medoids parameters"),
+                  numericInput("k", "k", 4, min = 1, step = 1)
+                ),
+                conditionalPanel(
+                  condition = "input.method == 'DBSCAN'",
+                  tags$label("DBSCAN parameters"),
+                  numericInput("eps", "eps", 0.1, min = 0, step = 0.01),
+                  numericInput("minPts", "minPts", 5, min = 1, step = 1)
+                ),
+                br(),
+                downloadButton("downloadData", "Download CSV file")
+              ),
+              tabPanel(
+                title = "Edit",
+                
+                tags$div(
+                  tags$label("Let the genotype of the sample indicated by the selected point be"),
+                  actionButton("A", "A"),
+                  actionButton("B", "B"),
+                  actionButton("H", "H"),
+                  actionButton("NA_", "N/A"),
+                  actionButton("unknown", "?"),
+                ),
+              )
+            )
           ), 
           # Show a plot of the generated distribution
           mainPanel(

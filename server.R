@@ -16,7 +16,8 @@ shinyServer(function(input, output, session) {
     
     variables <- reactiveValues(
         tables = NULL,
-        isExcel = FALSE
+        isExcel = FALSE,
+        input_error = FALSE
     )
     
     observeEvent(input$demo, {
@@ -32,6 +33,7 @@ shinyServer(function(input, output, session) {
         names(tbls) <- sheetNames
         variables$tables <- tbls
         variables$isExcel <- TRUE
+        variables$input_error <- FALSE
     })
     
     observeEvent(input$inFile, { 
@@ -56,7 +58,8 @@ shinyServer(function(input, output, session) {
                 tables <- purrr::compact(tables)
                 names(tables) <- sheetNames
             } else {
-                stop("Invalid input file.")
+                tables <- NULL
+                #stop("Invalid input file.")
             }
             
         } else {
@@ -67,10 +70,15 @@ shinyServer(function(input, output, session) {
                            VIC = starts_with(vic, ignore.case = TRUE),
                            ROX = starts_with(rox, ignore.case = TRUE)) %>%
                     mutate(`FAM/ROX` = FAM / ROX, `VIC/ROX` = VIC / ROX, sheet = 1)
+                tables <- list(tables)
             }, error = function(e) {
-                stop("Invalid input file.")
+                tables <- NULL
             })
-            tables <- list(tables)
+        }
+        if (is.null(tables)) {
+            variables$input_error <- TRUE
+        } else {
+            variables$input_error <- FALSE
         }
         variables$tables <- tables
     })
@@ -82,6 +90,7 @@ shinyServer(function(input, output, session) {
         
         normFun <- switch (input$normMethod,
             "none" = identity,
+            #"compatible" = function(x) x / max(x) * 0.95,
             "min-max" = function(x) (x - min(x)) / (max(x) - min(x)),
             "standard" = function(x) as.numeric(scale(x)),
         )
@@ -196,18 +205,61 @@ shinyServer(function(input, output, session) {
         variables$results <- tables
     })
     
+    observeEvent(input$A, {
+        variables$results %>% 
+            bind_rows() %>% 
+            brushedPoints(input$plot_brush, xvar = "FAM/ROX", yvar = "VIC/ROX", allRows = TRUE) %>%
+            mutate(genotype = if_else(selected_, "A", genotype)) %>% 
+            select(-selected_) -> variables$results
+    })
+    
+    observeEvent(input$B, {
+        variables$results %>% 
+            bind_rows() %>% 
+            brushedPoints(input$plot_brush, xvar = "FAM/ROX", yvar = "VIC/ROX", allRows = TRUE) %>%
+            mutate(genotype = if_else(selected_, "B", genotype)) %>% 
+            select(-selected_) -> variables$results
+    })
+    
+    observeEvent(input$H, {
+        variables$results %>% 
+            bind_rows() %>% 
+            brushedPoints(input$plot_brush, xvar = "FAM/ROX", yvar = "VIC/ROX", allRows = TRUE) %>%
+            mutate(genotype = if_else(selected_, "H", genotype)) %>% 
+            select(-selected_) -> variables$results
+    })
+    
+    observeEvent(input$NA_, {
+        variables$results %>% 
+            bind_rows() %>% 
+            brushedPoints(input$plot_brush, xvar = "FAM/ROX", yvar = "VIC/ROX", allRows = TRUE) %>%
+            mutate(genotype = if_else(selected_, "N/A", genotype)) %>% 
+            select(-selected_) -> variables$results
+    })
+    
+    observeEvent(input$unknown, {
+        variables$results %>% 
+            bind_rows() %>% 
+            brushedPoints(input$plot_brush, xvar = "FAM/ROX", yvar = "VIC/ROX", allRows = TRUE) %>%
+            mutate(genotype = if_else(selected_, "?", genotype)) %>% 
+            select(-selected_) -> variables$results
+    })
+    
     output$sheet <- renderUI({
-        sheetNames <- names(variables$tables)
-        selectInput("sheet", "Select sheet", choices = c(sheetNames, "ALL"))
+        if (variables$isExcel) {
+            sheetNames <- names(variables$tables)
+            selectInput("sheet", "Select sheet", choices = c(sheetNames, "ALL"))
+        }
     })
     
     output$plot <- renderPlot({
-        
+        validate(need(variables$input_error == FALSE,
+                      "Invalid input file! Please upload Excel or CSV file which include 'Well', 'FAM', 'VIC' and 'ROX' columns."))
         req(variables$results)
         tables <- variables$results
             
         values <- c("A" = "#dc143c", "B" = "#4169e1", "H" = "#3cb371", "N/A" = "#ffb6c1", "?" = "#808080")
-        tables %>% bind_rows() %>%
+        tables %>% bind_rows() %>% 
             mutate(genotype = factor(genotype, levels = names(values))) %>%
             ggplot(aes(x = `FAM/ROX`, y = `VIC/ROX`)) +
             geom_point(aes(col = genotype)) +
