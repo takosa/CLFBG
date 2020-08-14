@@ -17,7 +17,8 @@ shinyServer(function(input, output, session) {
     variables <- reactiveValues(
         tables = NULL,
         isExcel = FALSE,
-        input_error = FALSE
+        input_error = FALSE,
+        isDownloaded = FALSE
     )
     
     observeEvent(input$demo, {
@@ -65,16 +66,19 @@ shinyServer(function(input, output, session) {
         } else {
             # read table from CSV file
             tables <- tryCatch({
-                read.csv(input$inFile$datapath, check.names = F) %>%
-                    select(FAM = starts_with(fam, ignore.case = TRUE),
-                           VIC = starts_with(vic, ignore.case = TRUE),
-                           ROX = starts_with(rox, ignore.case = TRUE)) %>%
+                tables <- read.csv(input$inFile$datapath, check.names = F) %>%
+                    select(Well,
+                           FAM = first(starts_with(fam, ignore.case = TRUE)),
+                           VIC = first(starts_with(vic, ignore.case = TRUE)),
+                           ROX = first(starts_with(rox, ignore.case = TRUE))) %>%
                     mutate(`FAM/ROX` = FAM / ROX, `VIC/ROX` = VIC / ROX, sheet = 1)
                 tables <- list(tables)
             }, error = function(e) {
+                warning(e)
                 tables <- NULL
             })
         }
+        print(str(tables))
         if (is.null(tables)) {
             variables$input_error <- TRUE
         } else {
@@ -83,7 +87,6 @@ shinyServer(function(input, output, session) {
         variables$tables <- tables
     })
         
-    #runNormalization <- 
     observe({
         req(variables$tables)
         tables <- variables$tables
@@ -95,7 +98,6 @@ shinyServer(function(input, output, session) {
             "standard" = function(x) as.numeric(scale(x)),
         )
         
-        req(input$sheet)
         if (variables$isExcel) {
             if (input$sheet == "ALL") {
                 tables <- lapply(tables, function(x) {
@@ -116,12 +118,6 @@ shinyServer(function(input, output, session) {
             tables <- list(tables)
         }
         
-    #    variables$tables <- tables
-    ##})
-    #
-    ##runClustering <- 
-    ##observe({
-    #    tables <- variables$tables
         clusterFun <- switch (input$method,
             "k-means" = function(x) {
                 km <- kmeans(x, centers = input$k, iter.max = 100, nstart = 100)
@@ -146,11 +142,6 @@ shinyServer(function(input, output, session) {
             x %>% mutate(cluster = clusterFun(x[c("FAM/ROX", "VIC/ROX")]))
         })
         
-    #    variables$table <- tables
-    ##})
-    #
-    ##interpretResult <- 
-    ##observe({
         tables <- tables %>%
             lapply(function(tbl){
             # centers of each cluster exclude noize which labelled 0
@@ -269,6 +260,7 @@ shinyServer(function(input, output, session) {
     })
     
     output$table <- DT::renderDataTable({
+        showNotification("This is a notification.")
         req(variables$results)
         tables <- variables$results
         bind_rows(tables) %>% 
@@ -286,13 +278,23 @@ shinyServer(function(input, output, session) {
             
     })
     
+    #observeEvent(variables$isDownloaded, {
+    #    if (variables$isDownloaded)
+    #    showModal(modalDialog(
+    #        footer = tagList(
+    #            modalButton("Cancel"),
+    #            actionButton("ok", "OK")
+    #        )
+    #    ))
+    #}) 
     output$downloadData <- downloadHandler(
         filename = function() {
             paste("data-", Sys.Date(), ".csv", sep = "")
         },
         content = function(con) {
+            variables$isDownloaded <- TRUE
             data <- bind_rows(variables$results)
-            write.csv(data, con)
+            write.csv(data, con, row.names = F)
         }
     )
 })
