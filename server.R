@@ -46,9 +46,9 @@ shinyServer(function(input, output, session) {
                 tryCatch({
                     tbl %>%
                         select(Well,
-                               FAM = starts_with(fam, ignore.case = TRUE),
-                               VIC = starts_with(vic, ignore.case = TRUE),
-                               ROX = starts_with(rox, ignore.case = TRUE)) %>%
+                               FAM = first(starts_with(fam, ignore.case = TRUE)),
+                               VIC = first(starts_with(vic, ignore.case = TRUE)),
+                               ROX = first(starts_with(rox, ignore.case = TRUE))) %>%
                         mutate(`FAM/ROX` = FAM / ROX, `VIC/ROX` = VIC / ROX, sheet = n)
                 }, error = function(e) NULL)
             })
