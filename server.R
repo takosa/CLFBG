@@ -78,7 +78,6 @@ shinyServer(function(input, output, session) {
                 tables <- NULL
             })
         }
-        print(str(tables))
         if (is.null(tables)) {
             variables$input_error <- TRUE
         } else {
@@ -99,6 +98,7 @@ shinyServer(function(input, output, session) {
         )
         
         if (variables$isExcel) {
+            req(input$sheet)
             if (input$sheet == "ALL") {
                 tables <- lapply(tables, function(x) {
                     x %>%
@@ -260,7 +260,6 @@ shinyServer(function(input, output, session) {
     })
     
     output$table <- DT::renderDataTable({
-        showNotification("This is a notification.")
         req(variables$results)
         tables <- variables$results
         bind_rows(tables) %>% 
@@ -278,15 +277,29 @@ shinyServer(function(input, output, session) {
             
     })
     
-    #observeEvent(variables$isDownloaded, {
-    #    if (variables$isDownloaded)
-    #    showModal(modalDialog(
-    #        footer = tagList(
-    #            modalButton("Cancel"),
-    #            actionButton("ok", "OK")
-    #        )
-    #    ))
-    #}) 
+    observeEvent(variables$isDownloaded, {
+        req(variables$isDownloaded)
+        if (variables$isDownloaded) {
+            
+            showModal(modalDialog(
+                title = "アンケート",
+                "今回の解析はすべて期待通りのGenotyping結果を示しましたか？",
+                "（期待通りの結果が得られた場合はこの結果をもとに、最適なパラメータが決定されます）",
+                footer = tagList(
+                    modalButton("いいえ"),
+                    actionButton("ok", "はい")
+                )
+            ))
+            
+        }
+    })
+    
+    observeEvent(input$ok, {
+        conn <- DBI::dbConnect(drv = RSQLite::SQLite(),
+                               dbname = "traindata")
+        DBI::dbWriteTable(conn, paste0("d", format(Sys.time(), "%Y%m%d%H%M%s")), bind_rows(variables$results))
+        removeModal()
+    })
     output$downloadData <- downloadHandler(
         filename = function() {
             paste("data-", Sys.Date(), ".csv", sep = "")
