@@ -36,7 +36,7 @@ shinyUI(
                 actionButton("demo", "load demo data"),
                 uiOutput("sheet"),
                 radioButtons("normMethod", "Choose normalization method",
-                             choices = c("none", "min-max", "standard"),
+                             choices = c("none", "conventional", "min-max", "standard"),
                              selected = "none"),
                 radioButtons("method", "Choose clustering method",
                              choices = c("k-means", "k-medoids", "DBSCAN", "gauss-mix"),

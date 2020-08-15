@@ -92,7 +92,7 @@ shinyServer(function(input, output, session) {
         
         normFun <- switch (input$normMethod,
             "none" = identity,
-            #"compatible" = function(x) x / max(x) * 0.95,
+            "conventional" = function(x) x / max(x) * 0.95,
             "min-max" = function(x) (x - min(x)) / (max(x) - min(x)),
             "standard" = function(x) as.numeric(scale(x)),
         )
@@ -282,7 +282,7 @@ shinyServer(function(input, output, session) {
         if (variables$isDownloaded) {
             
             showModal(modalDialog(
-                title = "アンケート",
+                title = "",
                 "今回の解析はすべて期待通りのGenotyping結果を示しましたか？",
                 "（期待通りの結果が得られた場合はこの結果をもとに、最適なパラメータが決定されます）",
                 footer = tagList(
