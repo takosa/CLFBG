@@ -63,6 +63,7 @@ shinyUI(
               actionButton("H", "H"),
               actionButton("NA_", "N/A"),
               actionButton("unknown", "?"),
+              actionButton("ntc", "NTC"),
             ),
             br(),
             downloadButton("downloadData", "Download result file")

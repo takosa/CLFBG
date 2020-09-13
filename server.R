@@ -89,10 +89,6 @@ shinyServer(function(input, output, session) {
           tables <- get_tables(input$inFile$datapath)
           tables <- format_tables(tables)
         },
-        warning = function(e){
-            showNotification(e$message, type = "warning")
-            NULL
-       },
         error = function(e){
             showNotification(e$message, type = "error")
             NULL
@@ -103,7 +99,12 @@ shinyServer(function(input, output, session) {
     
     # input sample data
     observeEvent(input$sampleFile, {
-        variables$sampleTables <- get_tables(input$sampleFile$datapath)
+        variables$sampleTables <- tryCatch({
+            get_tables(input$sampleFile$datapath)
+        }, error = function(e) {
+            showNotification(e$message, type = "error")
+            NULL
+        })
     })
     
     # join samples table and data tables
@@ -226,7 +227,11 @@ shinyServer(function(input, output, session) {
             labels <- c("?", "A", "B", "H", "N/A")
             names(labels) <- as.character(c(0, a_no, b_no, h_no, na_no))
             
-            mutate(tbl, genotype = ifelse(cluster %in% names(labels), labels[as.character(cluster)], "?"))
+            tbl <- mutate(tbl, genotype = ifelse(cluster %in% names(labels), labels[as.character(cluster)], "?"))
+            if (any("Sample" == colnames(tbl))) {
+                tbl <- mutate(tbl, genotype = ifelse(Sample == "NTC", "NTC", genotype))
+            }
+            tbl
         })
         
         variables$results <- tables
@@ -277,6 +282,15 @@ shinyServer(function(input, output, session) {
             select(-selected_) -> variables$results
     })
     
+    # edit to unknown(?)
+    observeEvent(input$ntc, {
+        variables$results %>% 
+            bind_rows() %>% 
+            brushedPoints(input$plot_brush, xvar = "FAM/ROX", yvar = "VIC/ROX", allRows = TRUE) %>%
+            mutate(genotype = if_else(selected_, "NTC", genotype)) %>% 
+            select(-selected_) -> variables$results
+    })
+    
     # Input UI for selecting sheet
     output$sheet <- renderUI({
         if (length(variables$joinedTables) > 1) {
@@ -290,17 +304,20 @@ shinyServer(function(input, output, session) {
         validate(need(variables$input_error == FALSE,
                       "Invalid input file! Please upload Excel or CSV file which include 'Well', 'FAM', 'VIC' and 'ROX' columns."))
         req(variables$results)
-        print(variables$results)
         tables <- variables$results
             
-        values <- c("A" = "#dc143c", "B" = "#4169e1", "H" = "#3cb371", "N/A" = "#ffb6c1", "?" = "#808080")
+        values <- c("A" = "#dc143c", "B" = "#4169e1", "H" = "#3cb371", "N/A" = "#ffb6c1", "?" = "#808080", "NTC" = "#000000")
+        values2 <- c("A" = "#dc143c55", "B" = "#4169e155", "H" = "#3cb37155", "N/A" = "#ffb6c155", "?" = "#80808055", "NTC" = "#00000055")
+        values3 <- c("A" = 21, "B" = 21, "H" = 21, "N/A" = 21, "?" = 21, "NTC" = 24)
         tables %>% bind_rows() %>% 
             mutate(genotype = factor(genotype, levels = names(values))) %>%
             ggplot(aes(x = `FAM/ROX`, y = `VIC/ROX`)) +
-            geom_point(aes(col = genotype)) +
+            geom_point(aes(col = genotype, shape = genotype, fill = genotype)) +
             facet_wrap(vars(sheet), ncol = 3) +
             coord_equal(ratio = 1) +
-            scale_colour_manual(values = values)
+            scale_colour_manual(values = values) +
+            scale_fill_manual(values = values2) +
+            scale_shape_manual(values = values3)
     })
     
     # tables
@@ -340,7 +357,6 @@ shinyServer(function(input, output, session) {
             isCsv <- grepl("\\.csv$", input$inFile$datapath)
             isTxt <- grepl("\\.txt$", input$inFile$datapath)
             if (isExcel) {
-              print(variables$selectedTables)
               wb <- openxlsx::createWorkbook("Results")
               if (!is.null(names(variables$results))) {
                 walk(names(variables$results), ~openxlsx::addWorksheet(wb, .))
