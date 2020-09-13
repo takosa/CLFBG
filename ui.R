@@ -4,16 +4,17 @@ shinyUI(
   
   navbarPage(
     "CLFBG",
+    collapsible = TRUE,
     tabPanel(
       "Main",
       fluidPage(
-  tags$head(
-    tags$style(HTML("
-      .shiny-output-error-validation {
-        color: green;
-      }
-    "))
-  ),
+        tags$head(
+          tags$style(HTML("
+            .shiny-output-error-validation {
+              color: green;
+            }
+          "))
+        ),
         titlePanel("Clustering Fluorescence-Based Genotyping Data"), 
         p("This tool cluster fluorescence-based genotyping data like KASP [1]"),
         sidebarLayout(
@@ -147,6 +148,6 @@ shinyUI(
           ),
         )
       )
-    )
+    ),
   )
 )
