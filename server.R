@@ -326,7 +326,7 @@ shinyServer(function(input, output, session) {
         },
         content = function(con) {
             if(is.null(input$inFile)) {
-                showNotification("Sorry, you cannot download demo data.", type = "error")
+                showNotification("You cannot download before upload input data.", type = "error")
                 stop("Sorry, you cannot download demo data.")
             }
             isExcel <- grepl("(\\.xls|\\.xlsx)$", input$inFile$datapath)
@@ -335,7 +335,7 @@ shinyServer(function(input, output, session) {
             if (isExcel) {
               wb <- openxlsx::createWorkbook("Results")
               walk(names(variables$results), ~openxlsx::addWorksheet(wb, .))
-              iwalk(variables$results, ~openxlsx::writeDataTable(wb, sheet = .y, x = .x))
+              iwalk(variables$results, ~openxlsx::writeDataTable(wb, sheet = .y, x = as.data.frame(.x)))
               iwalk(variables$results, function(x, i) {
                   values <- c("A" = "#dc143c", "B" = "#4169e1", "H" = "#3cb371", "N/A" = "#ffb6c1", "?" = "#808080")
                   x <- mutate(x, genotype = factor(genotype, levels = names(values)))
@@ -344,8 +344,8 @@ shinyServer(function(input, output, session) {
                       facet_wrap(vars(sheet), ncol = 3) +
                       coord_equal(ratio = 1) +
                       scale_colour_manual(values = values)
-                  print(gp)
-                  openxlsx::insertPlot(wb, sheet = i)
+                  ggsave(tf <- tempfile(tmpdir = ".", fileext = ".png"), plot = gp)
+                  openxlsx::insertImage(wb, sheet = i, file = tf, width = 6, height = 6)
               })
               openxlsx::saveWorkbook(wb, con)
             } else if (isCsv) {
