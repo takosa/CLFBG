@@ -12,6 +12,9 @@ rox <- "ROX"
 x <- "FAM/ROX"
 y <- "VIC/ROX"
 
+
+# input function
+
 shinyServer(function(input, output, session) {
     
     variables <- reactiveValues(
@@ -38,8 +41,8 @@ shinyServer(function(input, output, session) {
     })
     
     observeEvent(input$inFile, { 
-        variables$isExcel <- grepl("(\\.xls|\\.xlsx)$", input$inFile$name)
-        if (variables$isExcel) {
+        variables$isExcel2 <- grepl("(\\.xls|\\.xlsx)$", input$sampleFile$name)
+        if (variables$isExcel2) {
             # read table from EXCEL file
             sheetNames <- readxl::excel_sheets(input$inFile$datapath)
             tables <- lapply(sheetNames, function(n) {
@@ -85,7 +88,10 @@ shinyServer(function(input, output, session) {
         }
         variables$tables <- tables
     })
+    
+    observeEvent(input$sampleFile, {
         
+    })
     observe({
         req(variables$tables)
         tables <- variables$tables
@@ -275,23 +281,6 @@ shinyServer(function(input, output, session) {
             DT::datatable() %>%
             DT::formatRound(c("FAM/ROX", "VIC/ROX"), 2)
             
-    })
-    
-    observeEvent(variables$isDownloaded, {
-        req(variables$isDownloaded)
-        if (variables$isDownloaded) {
-            
-            showModal(modalDialog(
-                title = "",
-                "今回の解析はすべて期待通りのGenotyping結果を示しましたか？",
-                "（期待通りの結果が得られた場合はこの結果をもとに、最適なパラメータが決定されます）",
-                footer = tagList(
-                    modalButton("いいえ"),
-                    actionButton("ok", "はい")
-                )
-            ))
-            
-        }
     })
     
     observeEvent(input$ok, {
