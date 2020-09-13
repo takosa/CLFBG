@@ -85,8 +85,18 @@ shinyServer(function(input, output, session) {
     
     # input user uploaded data
     observeEvent(input$inFile, {
-        tables <- get_tables(input$inFile$datapath)
-        tables <- format_tables(tables)
+        tables <- tryCatch({
+          tables <- get_tables(input$inFile$datapath)
+          tables <- format_tables(tables)
+        },
+        warning = function(e){
+            showNotification(e$message, type = "warning")
+            NULL
+       },
+        error = function(e){
+            showNotification(e$message, type = "error")
+            NULL
+        })
         variables$tables <- tables
         variables$joinedTables <- tables
     })
@@ -99,9 +109,16 @@ shinyServer(function(input, output, session) {
     # join samples table and data tables
     observe({
         req(variables$tables, variables$sampleTables)
-        names(variables$sampleTables) <- names(variables$tables)
-        variables$joinedTables <- map2(variables$sampleTables, variables$tables,
-                                 ~right_join(.x, .y, by = "Well"))
+        if (length(variables$sampleTables) == length(variables$tables)) {
+            names(variables$sampleTables) <- names(variables$tables)
+        }
+        tryCatch({
+            variables$joinedTables <-  
+            map2(variables$sampleTables, variables$tables,
+                                     ~right_join(.x, .y, by = "Well"))
+        }, error = function(e) {
+            showNotification("Cannot join sample and data.", type = "error")
+        })
     })
     
     # select sheet 
@@ -125,26 +142,11 @@ shinyServer(function(input, output, session) {
             "standard" = function(x) as.numeric(scale(x)),
         )
         
-        if (length(variables$tables) > 1) {
-            req(input$sheet)
-            if (input$sheet == "ALL") {
-                tables <- lapply(tables, function(x) {
-                    x %>%
-                    mutate(`FAM/ROX` = normFun(`FAM/ROX`),
-                           `VIC/ROX` = normFun(`VIC/ROX`))
-                })
-            } else {
-                tables <- tables[[input$sheet]] %>%
-                    mutate(`FAM/ROX` = normFun(`FAM/ROX`),
-                           `VIC/ROX` = normFun(`VIC/ROX`))
-                tables <- list(tables)
-            }
-        } else {
-            tables <- tables[[1]] %>% 
-                mutate(`FAM/ROX` = normFun(`FAM/ROX`),
-                       `VIC/ROX` = normFun(`VIC/ROX`))
-            tables <- list(tables)
-        }
+        tables <- lapply(tables, function(x) {
+            x %>%
+            mutate(`FAM/ROX` = normFun(`FAM/ROX`),
+                   `VIC/ROX` = normFun(`VIC/ROX`))
+        })
         variables$normalizedTables <- tables
     })
     
@@ -288,6 +290,7 @@ shinyServer(function(input, output, session) {
         validate(need(variables$input_error == FALSE,
                       "Invalid input file! Please upload Excel or CSV file which include 'Well', 'FAM', 'VIC' and 'ROX' columns."))
         req(variables$results)
+        print(variables$results)
         tables <- variables$results
             
         values <- c("A" = "#dc143c", "B" = "#4169e1", "H" = "#3cb371", "N/A" = "#ffb6c1", "?" = "#808080")
@@ -337,8 +340,13 @@ shinyServer(function(input, output, session) {
             isCsv <- grepl("\\.csv$", input$inFile$datapath)
             isTxt <- grepl("\\.txt$", input$inFile$datapath)
             if (isExcel) {
+              print(variables$selectedTables)
               wb <- openxlsx::createWorkbook("Results")
-              walk(names(variables$results), ~openxlsx::addWorksheet(wb, .))
+              if (!is.null(names(variables$results))) {
+                walk(names(variables$results), ~openxlsx::addWorksheet(wb, .))
+              } else {
+                walk(seq_along(variables$results), ~openxlsx::addWorksheet(wb, .))
+              }
               iwalk(variables$results, ~openxlsx::writeDataTable(wb, sheet = .y, x = as.data.frame(.x)))
               iwalk(variables$results, function(x, i) {
                   values <- c("A" = "#dc143c", "B" = "#4169e1", "H" = "#3cb371", "N/A" = "#ffb6c1", "?" = "#808080")
