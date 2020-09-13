@@ -314,7 +314,11 @@ shinyServer(function(input, output, session) {
                 }
             } %>%
             select(-selected_) %>%
-            DT::datatable() %>%
+            DT::datatable(
+                options = list(
+                    columnDefs = list(list(targets = which((c("FAM", "VIC", "ROX", "FAM/ROX", "VIC/ROX")%in%colnames(.)))+1L, searchable = FALSE))
+                )
+            ) %>%
             DT::formatRound(c("FAM/ROX", "VIC/ROX"), 2)
             
     })
