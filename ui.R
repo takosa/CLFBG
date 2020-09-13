@@ -23,6 +23,7 @@ shinyUI(
               accept = c("text/csv", "application/vnd.ms-excel",
                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          ".csv",
+                         ".txt",
                          ".xls",
                          ".xlsx")),
             fileInput(
@@ -30,16 +31,18 @@ shinyUI(
               accept = c("text/csv", "application/vnd.ms-excel",
                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          ".csv",
+                         ".txt",
                          ".xls",
                          ".xlsx")),
             actionButton("demo", "or load demo data"),
             div(style = "height: 10px;"),
             uiOutput("sheet"),
             radioButtons("normMethod", "Choose normalization method",
-                         choices = c("none", "conventional", "min-max", "standard"),
+                         choices = c("none", "min-max", "standard"),
                          selected = "none"),
             radioButtons("method", "Choose clustering method",
-                         choices = c("k-means", "k-medoids", "DBSCAN [2]", "GMM [3]"),
+                         choiceNames = c("k-means", "k-medoids", "DBSCAN [2]", "GMM [3]"),
+                         choiceValues = c("k-means", "k-medoids", "DBSCAN", "GMM"),
                          selected = "k-means"),
             conditionalPanel(
               condition = "input.method == 'k-means' || input.method == 'k-medoids'",
@@ -62,7 +65,7 @@ shinyUI(
               actionButton("unknown", "?"),
             ),
             br(),
-            downloadButton("downloadData", "Download result CSV file")
+            downloadButton("downloadData", "Download result file")
           ), 
           # Show a plot of the generated distribution
           mainPanel(
@@ -100,6 +103,7 @@ shinyUI(
           tags$h3("1. Upload input data"),
           tags$p("requiered 'Well', 'FAM', 'VIC' and 'ROX' column. Each row represent each sample"),
           tags$p("If Excel file is uploaded, you can select sheet number. 'ALL' means all sheets"),
+          tags$p("You can also upload a table of mapping Well to Sample"),
           tags$h3("2. Choose a normalization(scaling) method"),
           tags$p("The meaning of each normalization(scaling) method is below."),
           tags$dl(

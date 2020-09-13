@@ -14,6 +14,57 @@ y <- "VIC/ROX"
 
 
 # input function
+get_tables <- function(file) {
+    isExcel <- grepl("(\\.xls|\\.xlsx)$", file)
+    isCsv <- grepl("\\.csv$", file)
+    isTxt <- grepl("\\.txt$", file)
+    if (isExcel) {
+        # read Excel file
+        sheetNames <- readxl::excel_sheets(file)
+        tables <- lapply(sheetNames, function(n) {
+            readxl::read_excel(file, sheet = n)
+        })
+        names(tables) <- sheetNames
+    } else if (isCsv) {
+        # read csv file
+        tables <- list(read.csv(file))
+        names(tables) <- "sheet1"
+    } else if (isTxt) {
+        # read txt file
+        tables <- list(read.delim(file))
+        names(tables) <- "sheet1"
+    } else {
+        stop("Invalide file type!")
+    }
+    tables
+}
+
+# format table function
+format_tables <- function(tables) {
+    tables <- imap(tables, function(tbl, n) {
+        isFormatOk <- "Well" %in% colnames(tbl) &&
+            any(startsWith(colnames(tbl), fam)) &&
+            any(startsWith(colnames(tbl), vic)) &&
+            any(startsWith(colnames(tbl), rox))
+        if (isFormatOk) {
+            tbl <-
+                tbl %>% select(
+                    Well,
+                    FAM = first(starts_with(fam, ignore.case = TRUE)),
+                    VIC = first(starts_with(vic, ignore.case = TRUE)),
+                    ROX = first(starts_with(rox, ignore.case = TRUE))) %>%
+                mutate(`FAM/ROX` = FAM / ROX, `VIC/ROX` = VIC / ROX, sheet = n)
+            return(tbl)
+        } else {
+            return(NULL)
+        }
+    })
+    tables <- compact(tables)
+    if (length(tables) == 0) {
+        stop("Tables should include Well, FAM, VIC and ROX columns!")
+    }
+    tables
+}
 
 shinyServer(function(input, output, session) {
     
@@ -24,86 +75,57 @@ shinyServer(function(input, output, session) {
         isDownloaded = FALSE
     )
     
+    # input demo data
     observeEvent(input$demo, {
-        sheetNames <- readxl::excel_sheets("demo.xlsx")
-        tbls <- lapply(sheetNames, function(n) {
-            readxl::read_excel("demo.xlsx", sheet = n) %>%
-                select(Well,
-                       FAM = starts_with(fam, ignore.case = TRUE),
-                       VIC = starts_with(vic, ignore.case = TRUE),
-                       ROX = starts_with(rox, ignore.case = TRUE)) %>%
-                mutate(`FAM/ROX` = FAM / ROX, `VIC/ROX` = VIC / ROX, sheet = n)
-        })
-        names(tbls) <- sheetNames
-        variables$tables <- tbls
-        variables$isExcel <- TRUE
-        variables$input_error <- FALSE
-    })
-    
-    observeEvent(input$inFile, { 
-        variables$isExcel2 <- grepl("(\\.xls|\\.xlsx)$", input$sampleFile$name)
-        if (variables$isExcel2) {
-            # read table from EXCEL file
-            sheetNames <- readxl::excel_sheets(input$inFile$datapath)
-            tables <- lapply(sheetNames, function(n) {
-                tbl <- readxl::read_excel(input$inFile$datapath, sheet = n)
-                tryCatch({
-                    tbl %>%
-                        select(Well,
-                               FAM = first(starts_with(fam, ignore.case = TRUE)),
-                               VIC = first(starts_with(vic, ignore.case = TRUE)),
-                               ROX = first(starts_with(rox, ignore.case = TRUE))) %>%
-                        mutate(`FAM/ROX` = FAM / ROX, `VIC/ROX` = VIC / ROX, sheet = n)
-                }, error = function(e) NULL)
-            })
-            
-            if (!all(sapply(tables, is.null))) {
-                sheetNames <- sheetNames[!sapply(tables, is.null)]
-                tables <- purrr::compact(tables)
-                names(tables) <- sheetNames
-            } else {
-                tables <- NULL
-                #stop("Invalid input file.")
-            }
-            
-        } else {
-            # read table from CSV file
-            tables <- tryCatch({
-                tables <- read.csv(input$inFile$datapath, check.names = F) %>%
-                    select(Well,
-                           FAM = first(starts_with(fam, ignore.case = TRUE)),
-                           VIC = first(starts_with(vic, ignore.case = TRUE)),
-                           ROX = first(starts_with(rox, ignore.case = TRUE))) %>%
-                    mutate(`FAM/ROX` = FAM / ROX, `VIC/ROX` = VIC / ROX, sheet = 1)
-                tables <- list(tables)
-            }, error = function(e) {
-                warning(e)
-                tables <- NULL
-            })
-        }
-        if (is.null(tables)) {
-            variables$input_error <- TRUE
-        } else {
-            variables$input_error <- FALSE
-        }
+        tables <- get_tables("demo.xlsx")
+        tables <- format_tables(tables)
         variables$tables <- tables
+        variables$joinedTables <- tables
     })
     
-    observeEvent(input$sampleFile, {
-        
+    # input user uploaded data
+    observeEvent(input$inFile, {
+        tables <- get_tables(input$inFile$datapath)
+        tables <- format_tables(tables)
+        variables$tables <- tables
+        variables$joinedTables <- tables
     })
+    
+    # input sample data
+    observeEvent(input$sampleFile, {
+        variables$sampleTables <- get_tables(input$sampleFile$datapath)
+    })
+    
+    # join samples table and data tables
     observe({
-        req(variables$tables)
-        tables <- variables$tables
+        req(variables$tables, variables$sampleTables)
+        names(variables$sampleTables) <- names(variables$tables)
+        variables$joinedTables <- map2(variables$sampleTables, variables$tables,
+                                 ~right_join(.x, .y, by = "Well"))
+    })
+    
+    # select sheet 
+    observe({
+        req(variables$joinedTables)
+        if (is.null(input$sheet) || input$sheet == "ALL") {
+            variables$selectedTables <- variables$joinedTables
+        } else {
+            variables$selectedTables <- variables$joinedTables[input$sheet]
+        }
+    })
+    
+    # normalize data
+    observe({
+        req(variables$selectedTables)
+        tables <- variables$selectedTables
         
         normFun <- switch (input$normMethod,
             "none" = identity,
-            "conventional" = function(x) x / max(x) * 0.95,
             "min-max" = function(x) (x - min(x)) / (max(x) - min(x)),
             "standard" = function(x) as.numeric(scale(x)),
         )
         
-        if (variables$isExcel) {
+        if (length(variables$tables) > 1) {
             req(input$sheet)
             if (input$sheet == "ALL") {
                 tables <- lapply(tables, function(x) {
@@ -123,7 +145,13 @@ shinyServer(function(input, output, session) {
                        `VIC/ROX` = normFun(`VIC/ROX`))
             tables <- list(tables)
         }
-        
+        variables$normalizedTables <- tables
+    })
+    
+    # clustering data
+    observe({
+        req(variables$normalizedTables)
+        tables <- variables$normalizedTables
         clusterFun <- switch (input$method,
             "k-means" = function(x) {
                 km <- kmeans(x, centers = input$k, iter.max = 100, nstart = 100)
@@ -137,7 +165,7 @@ shinyServer(function(input, output, session) {
                 ds <- dbscan::dbscan(x, eps = input$eps, minPts = input$minPts)
                 cls <- ds$cluster
             },
-            "gauss-mix" = function(x) {
+            "GMM" = function(x) {
                 require(mclust)
                 mc <- mclust::Mclust(x, modelNames = "EVE")
                 cls <- mc$classification
@@ -202,6 +230,7 @@ shinyServer(function(input, output, session) {
         variables$results <- tables
     })
     
+    # edit to A
     observeEvent(input$A, {
         variables$results %>% 
             bind_rows() %>% 
@@ -210,6 +239,7 @@ shinyServer(function(input, output, session) {
             select(-selected_) -> variables$results
     })
     
+    # edit to B
     observeEvent(input$B, {
         variables$results %>% 
             bind_rows() %>% 
@@ -218,6 +248,7 @@ shinyServer(function(input, output, session) {
             select(-selected_) -> variables$results
     })
     
+    # edit to H
     observeEvent(input$H, {
         variables$results %>% 
             bind_rows() %>% 
@@ -226,6 +257,7 @@ shinyServer(function(input, output, session) {
             select(-selected_) -> variables$results
     })
     
+    # edit to NA
     observeEvent(input$NA_, {
         variables$results %>% 
             bind_rows() %>% 
@@ -234,6 +266,7 @@ shinyServer(function(input, output, session) {
             select(-selected_) -> variables$results
     })
     
+    # edit to unknown(?)
     observeEvent(input$unknown, {
         variables$results %>% 
             bind_rows() %>% 
@@ -242,13 +275,15 @@ shinyServer(function(input, output, session) {
             select(-selected_) -> variables$results
     })
     
+    # Input UI for selecting sheet
     output$sheet <- renderUI({
-        if (variables$isExcel) {
-            sheetNames <- names(variables$tables)
-            selectInput("sheet", "Select sheet", choices = c(sheetNames, "ALL"))
+        if (length(variables$joinedTables) > 1) {
+            sheetNames <- names(variables$joinedTables)
+            selectInput("sheet", "Select sheet", choices = c(sheetNames, "ALL"), selected = "ALL")
         }
     })
     
+    # plot
     output$plot <- renderPlot({
         validate(need(variables$input_error == FALSE,
                       "Invalid input file! Please upload Excel or CSV file which include 'Well', 'FAM', 'VIC' and 'ROX' columns."))
@@ -265,6 +300,7 @@ shinyServer(function(input, output, session) {
             scale_colour_manual(values = values)
     })
     
+    # tables
     output$table <- DT::renderDataTable({
         req(variables$results)
         tables <- variables$results
@@ -283,20 +319,42 @@ shinyServer(function(input, output, session) {
             
     })
     
-    observeEvent(input$ok, {
-        conn <- DBI::dbConnect(drv = RSQLite::SQLite(),
-                               dbname = "traindata")
-        DBI::dbWriteTable(conn, paste0("d", format(Sys.time(), "%Y%m%d%H%M%s")), bind_rows(variables$results))
-        removeModal()
-    })
+    # download
     output$downloadData <- downloadHandler(
         filename = function() {
-            paste("data-", Sys.Date(), ".csv", sep = "")
+            paste0("data-", Sys.Date(), ".", tools::file_ext(input$inFile$datapath))
         },
         content = function(con) {
-            variables$isDownloaded <- TRUE
-            data <- bind_rows(variables$results)
-            write.csv(data, con, row.names = F)
+            if(is.null(input$inFile)) {
+                showNotification("Sorry, you cannot download demo data.", type = "error")
+                stop("Sorry, you cannot download demo data.")
+            }
+            isExcel <- grepl("(\\.xls|\\.xlsx)$", input$inFile$datapath)
+            isCsv <- grepl("\\.csv$", input$inFile$datapath)
+            isTxt <- grepl("\\.txt$", input$inFile$datapath)
+            if (isExcel) {
+              wb <- openxlsx::createWorkbook("Results")
+              walk(names(variables$results), ~openxlsx::addWorksheet(wb, .))
+              iwalk(variables$results, ~openxlsx::writeDataTable(wb, sheet = .y, x = .x))
+              iwalk(variables$results, function(x, i) {
+                  values <- c("A" = "#dc143c", "B" = "#4169e1", "H" = "#3cb371", "N/A" = "#ffb6c1", "?" = "#808080")
+                  x <- mutate(x, genotype = factor(genotype, levels = names(values)))
+                  gp <- ggplot(x, aes(x = `FAM/ROX`, y = `VIC/ROX`)) +
+                      geom_point(aes(col = genotype)) +
+                      facet_wrap(vars(sheet), ncol = 3) +
+                      coord_equal(ratio = 1) +
+                      scale_colour_manual(values = values)
+                  print(gp)
+                  openxlsx::insertPlot(wb, sheet = i)
+              })
+              openxlsx::saveWorkbook(wb, con)
+            } else if (isCsv) {
+              data <- bind_rows(variables$results)
+              write.csv(data, con, row.names = F, quote = FALSE)
+            } else if (isTxt) {
+              data <- bind_rows(variables$results)
+              write.table(data, con, row.names = F, quote = FALSE, sep = "\t")
+            }
         }
     )
 })
