@@ -376,7 +376,7 @@ shinyServer(function(input, output, session) {
                   values3 <- c("A" = 21, "B" = 21, "H" = 21, "N/A" = 21, "?" = 21, "NTC" = 24)
                   x <- mutate(x, genotype = factor(genotype, levels = names(values)))
                   gp <- ggplot(x, aes(x = `FAM/ROX`, y = `VIC/ROX`)) +
-                      geom_point(aes(col = genotype)) +
+                      geom_point(aes(col = genotype, fill = genotype, shape = genotype)) +
                       facet_wrap(vars(sheet), ncol = 3) +
                       coord_equal(ratio = 1) +
                       scale_colour_manual(values = values) +
