@@ -370,13 +370,17 @@ shinyServer(function(input, output, session) {
               }
               iwalk(variables$results, ~openxlsx::writeDataTable(wb, sheet = .y, x = as.data.frame(.x)))
               iwalk(variables$results, function(x, i) {
-                  values <- c("A" = "#dc143c", "B" = "#4169e1", "H" = "#3cb371", "N/A" = "#ffb6c1", "?" = "#808080")
+                  values <- c("A" = "#dc143c", "B" = "#4169e1", "H" = "#3cb371", "N/A" = "#ffb6c1", "?" = "#808080", "NTC" = "#000000")
+                  values2 <- c("A" = "#dc143c55", "B" = "#4169e155", "H" = "#3cb37155", "N/A" = "#ffb6c155", "?" = "#80808055", "NTC" = "#00000055")
+                  values3 <- c("A" = 21, "B" = 21, "H" = 21, "N/A" = 21, "?" = 21, "NTC" = 24)
                   x <- mutate(x, genotype = factor(genotype, levels = names(values)))
                   gp <- ggplot(x, aes(x = `FAM/ROX`, y = `VIC/ROX`)) +
                       geom_point(aes(col = genotype)) +
                       facet_wrap(vars(sheet), ncol = 3) +
                       coord_equal(ratio = 1) +
-                      scale_colour_manual(values = values)
+                      scale_colour_manual(values = values) +
+                      scale_fill_manual(values = values2) +
+                      scale_shape_manual(values = values3)
                   ggsave(tf <- tempfile(tmpdir = ".", fileext = ".png"), plot = gp)
                   openxlsx::insertImage(wb, sheet = i, file = tf, width = 6, height = 6)
                   file.remove(tf)
