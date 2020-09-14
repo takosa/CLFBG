@@ -384,9 +384,10 @@ shinyServer(function(input, output, session) {
                       scale_shape_manual(values = values3)
                   ggsave(tf <- tempfile(tmpdir = ".", fileext = ".png"), plot = gp)
                   openxlsx::insertImage(wb, sheet = i, file = tf, width = 6, height = 6)
-                  all_tfs <- c(all_tfs, tf)
+                  all_tfs <<- c(all_tfs, tf)
               })
               openxlsx::saveWorkbook(wb, con)
+              print(all_tfs)
               file.remove(all_tfs)
             } else if (isCsv) {
               data <- bind_rows(variables$results)
