@@ -369,6 +369,7 @@ shinyServer(function(input, output, session) {
                 walk(seq_along(variables$results), ~openxlsx::addWorksheet(wb, .))
               }
               iwalk(variables$results, ~openxlsx::writeDataTable(wb, sheet = .y, x = as.data.frame(.x)))
+              all_tfs <- NULL
               iwalk(variables$results, function(x, i) {
                   values <- c("A" = "#dc143c", "B" = "#4169e1", "H" = "#3cb371", "N/A" = "#ffb6c1", "?" = "#808080", "NTC" = "#000000")
                   values2 <- c("A" = "#dc143c55", "B" = "#4169e155", "H" = "#3cb37155", "N/A" = "#ffb6c155", "?" = "#80808055", "NTC" = "#00000055")
@@ -383,9 +384,10 @@ shinyServer(function(input, output, session) {
                       scale_shape_manual(values = values3)
                   ggsave(tf <- tempfile(tmpdir = ".", fileext = ".png"), plot = gp)
                   openxlsx::insertImage(wb, sheet = i, file = tf, width = 6, height = 6)
-                  file.remove(tf)
+                  all_tfs <- c(all_tfs, tf)
               })
               openxlsx::saveWorkbook(wb, con)
+              file.remove(all_tfs)
             } else if (isCsv) {
               data <- bind_rows(variables$results)
               write.csv(data, con, row.names = F, quote = FALSE)
