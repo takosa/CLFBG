@@ -379,6 +379,7 @@ shinyServer(function(input, output, session) {
                       scale_colour_manual(values = values)
                   ggsave(tf <- tempfile(tmpdir = ".", fileext = ".png"), plot = gp)
                   openxlsx::insertImage(wb, sheet = i, file = tf, width = 6, height = 6)
+                  file.remove(tf)
               })
               openxlsx::saveWorkbook(wb, con)
             } else if (isCsv) {
