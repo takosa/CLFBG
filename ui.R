@@ -19,6 +19,7 @@ shinyUI(
         p("This tool cluster fluorescence-based genotyping data like KASP [1]"),
         sidebarLayout(
           sidebarPanel(
+            width = 3,
             fileInput(
               "inFile", "Input data",
               accept = c("text/csv", "application/vnd.ms-excel",
@@ -71,6 +72,7 @@ shinyUI(
           ), 
           # Show a plot of the generated distribution
           mainPanel(
+            width = 9,
             plotOutput("plot",
                        click = "plot_click",
                        dblclick = "plot_dblclick",
